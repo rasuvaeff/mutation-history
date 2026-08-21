@@ -51,8 +51,30 @@ docker run --rm -v "$PWD":/app -w /app composer:2 composer test
 
 `composer.lock` is gitignored (library).
 
+`composer mutation:gate` (`.github/scripts/mutation-gate.sh`) runs the package
+against itself: it records the Infection run just produced by `composer
+mutation` and exits `1` when a mutant that used to be killed now escapes. It
+needs `build/infection-log.json` and `build/infection-summary.log` on disk, so
+run `composer mutation` first. Every input is an env var with a default
+(`MUTATION_SCOPE`, `MUTATION_RUN`, `MUTATION_LOG`, `MUTATION_SUMMARY`,
+`MUTATION_STORAGE`) — set `MUTATION_STORAGE` to a throwaway directory when
+trying it locally, so a local run never lands in the history CI compares
+against (mutant identity contains Infection's **absolute** file path, so a
+`/app` run and a `/home/runner/work/...` run share no ids at all).
+
 ## Invariants & gotchas
 
+- **The MSI written into the ledger is recomputed by the gate script, not
+  read from Infection.** Infection publishes the figure nowhere a script can
+  read exactly — the console prints `floor()`-ed whole percents, and neither
+  the JSON nor the summary logger carries it — so `mutation-gate.sh` applies
+  `Metrics/Calculator::getMutationScoreIndicator()`'s formula to the counts in
+  `build/infection-summary.log`. That is duplicated arithmetic feeding
+  **append-only** history: if Infection renames a summary label or changes the
+  formula, the gate keeps writing a wrong-but-numeric MSI forever. The fix is
+  for `digest` to derive MSI from the JSON log it already parses; until then,
+  re-check the block against Infection's source whenever the dependency's
+  major or minor moves.
 - **`MutantId::normalizeDiff()`'s three operations run in exactly this
   order: newline-normalize → whitespace-collapse → hunk-header-strip →
   trim — not the more "obvious" strip-then-normalize order.** A property
