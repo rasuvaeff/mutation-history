@@ -1,0 +1,94 @@
+# mutation-history
+
+Install:
+
+```
+composer require rasuvaeff/mutation-history
+```
+
+## Rules
+
+- PHP 8.3-8.5, `declare(strict_types=1)`, `final readonly class` throughout.
+- Reads Infection's **per-mutant JSON log** — enable it in `infection.json5`:
+  `"logs": { "json": "build/infection-log.json" }`. There is no
+  `--logger-json` CLI flag; it is a config key only.
+- `MutantId` identifies a mutant by `file + line + mutatorName +
+  normalize(diff)`, length-prefixed so the encoding is injective — a moved
+  line or a changed mutation is honestly a different mutant; the package
+  never guesses "probably the same one".
+- Every bucket becomes a `Datum`: `killed` and `killedByStaticAnalysis` →
+  `killed`, `escaped`, `timeouted` → `timeout`, `errored` → `error`,
+  `uncovered`, `ignored`. Any of those statuses is a valid `--bad-status`.
+- The log is untrusted input: every field of every entry is checked, and a
+  malformed one raises `InvalidArgumentException` naming the field
+  (`Infection log entry escaped[3].diff must be a string`).
+- Which test killed a mutant is **not** recoverable from Infection's log
+  (`killedBy`/`coveredByTests` do not exist in it) — this package gives you
+  trend + regression-ratchet, not per-test killing power.
+- `syntaxErrors` entries are dropped — a syntax error is a tooling artifact,
+  not a mutant.
+
+## CLI
+
+`vendor/bin/mutation-history` — the CI-facing entry point. Exit `1` on a bad
+option, an unreadable log, or a failed ratchet gate; never a silent pass.
+
+```
+mutation-history digest --scope=<s> --run=<id> --log=<path> [--msi=<number>] [--storage=<dir>]
+mutation-history diff   --scope=<s> --base=<run> --head=<run> [--bad-status=escaped] [--storage=<dir>]
+mutation-history trend  --scope=<s> [--metric=msi] [--window=<n>] [--storage=<dir>]
+mutation-history badge  --scope=<s> [--metric=msi] [--label=<text>] [--out=<path>] [--storage=<dir>]
+```
+
+- `--storage` defaults to `<cwd>/build/mutation-history`; keep that directory
+  between CI runs or `diff` has no history.
+- `--msi` must be numeric; `--window` must be a non-negative integer (`0`
+  yields no points); an empty `--bad-status=` falls back to `escaped`.
+- `diff` prints `NEW`/`OLD`/`FIXED` lines and a `newBad=… fixed=… stillBad=…
+  unchanged=…` summary.
+- `badge` renders `quality-ledger`'s `BadgeSvg` — a self-contained SVG, no
+  shields.io and no network. Without `--out` it goes to stdout; a scope with
+  no runs renders `n/a` in red and still exits `0`.
+- The log is read whole — budget a `memory_limit` several times its size.
+
+## API
+
+```php
+use Rasuvaeff\MutationHistory\InfectionLogParser;
+use Rasuvaeff\MutationHistory\MutantId;
+use Rasuvaeff\QualityLedger\Ledger;
+use Rasuvaeff\QualityLedger\LocalFileStorage;
+use Rasuvaeff\QualityLedger\RatchetGate;
+
+$parser = new InfectionLogParser();
+$ledger = new Ledger(id: new MutantId(), storage: new LocalFileStorage(__DIR__ . '/build/mutation-history'));
+
+$json = file_get_contents('build/infection-log.json');
+
+if ($json === false) {
+    throw new RuntimeException('Could not read build/infection-log.json');
+}
+
+$report = $parser->parse(
+    json: $json,
+    run: getenv('GITHUB_SHA') ?: 'local',
+    ts: time(),
+    scope: 'acme/widgets',
+    metrics: ['msi' => 91.4], // from Infection's own stats.msi, read separately
+);
+$ledger->append($report);
+
+$isBad = static fn(string $status): bool => $status === 'escaped';
+$diff = $ledger->diff(scope: 'acme/widgets', base: $previousSha, head: $currentSha, isBad: $isBad);
+$gate = (new RatchetGate())->evaluate($diff);
+
+if (!$gate->ok) {
+    foreach ($gate->regressions as $entry) {
+        printf("new escaped mutant: %s:%s (%s)\n", $entry->meta['file'], $entry->meta['line'], $entry->meta['mutator']);
+    }
+
+    exit(1);
+}
+
+$trend = $ledger->trend(scope: 'acme/widgets', metric: 'msi', window: 30);
+```

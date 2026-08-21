@@ -1,0 +1,20 @@
+{
+    "$schema": "vendor/infection/infection/resources/schema.json",
+    "source": {
+        "directories": ["src"]
+    },
+    "logs": {
+        "text": "php://stderr",
+        "summary": "build/infection-summary.log",
+        // The per-mutant log this package exists to parse: `composer mutation`
+        // leaves one behind, so `bin/mutation-history digest
+        // --log=build/infection-log.json` can be run against the package's
+        // own run.
+        "json": "build/infection-log.json"
+    },
+    "testFramework": "testo",
+    "minMsi": 97,
+    "mutators": {
+        "@default": true
+    }
+}
