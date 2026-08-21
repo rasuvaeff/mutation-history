@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+- The package gates itself: `composer mutation:gate`
+  (`.github/scripts/mutation-gate.sh`) records every Infection run of this
+  repository in a ledger and fails the job when a mutant that used to be
+  killed starts escaping. Both READMEs carry the GitHub Actions recipe,
+  including the two consequences of keeping the ledger in the Actions cache
+  and the fact that mutant identity contains Infection's absolute file path.
+
 ## 0.1.0 — 2026-08-21
 
 - Initial release: `InfectionLogParser` (parses Infection's per-mutant JSON

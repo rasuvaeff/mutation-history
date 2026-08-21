@@ -161,6 +161,55 @@ A scope with no runs yet renders `n/a` in red and still exits `0`: the first
 job of a repository is exactly that state, and a badge step that broke the
 build there would be useless.
 
+### In GitHub Actions
+
+This repository gates itself with the recipe below — see
+[`.github/workflows/build.yml`](.github/workflows/build.yml) and
+[`.github/scripts/mutation-gate.sh`](.github/scripts/mutation-gate.sh).
+
+```yaml
+# Split restore/save, not one `actions/cache` step: the combined action
+# declares `post-if: success()`, so it would drop the write on exactly the
+# red run that recorded the regression. `run_attempt` in the key matters
+# because a re-run repeats `run_id`, and `save` refuses an existing key.
+- name: Restore mutation history
+  uses: actions/cache/restore@<sha> # v6
+  with:
+    path: build/mutation-history
+    key: mutation-history-${{ github.run_id }}-${{ github.run_attempt }}
+    restore-keys: mutation-history-
+
+- name: Mutation testing
+  run: composer mutation
+
+- name: Ratchet gate on new escapes
+  if: ${{ !cancelled() }}   # a run below minMsi is the one worth recording
+  run: composer mutation:gate
+
+- name: Save mutation history
+  if: ${{ !cancelled() }}
+  uses: actions/cache/save@<sha> # v6
+  with:
+    path: build/mutation-history
+    key: mutation-history-${{ github.run_id }}-${{ github.run_attempt }}
+```
+
+Two consequences of caching worth knowing before you copy this:
+
+- **The ratchet only tightens on the default branch.** A pull request reads
+  the base branch's history but writes to its own isolated cache, so it
+  compares against the last run on the base branch and cannot poison it.
+- **The history is as durable as the cache.** GitHub evicts entries after
+  seven days of no reads, and the first run afterwards becomes a new
+  baseline. If the history must survive that, write it somewhere else —
+  `--storage` takes any directory, and the ledger is one JSON file per scope.
+
+Mutant identity includes `originalFilePath` exactly as Infection reports it,
+which is **absolute**. A ledger filled at `/home/runner/work/...` shares no
+ids with one filled at `/app`, so keep one storage per environment (or run
+the gate only in CI, as here) rather than mixing a local run into the CI
+history.
+
 ### `InfectionLogParser`
 
 Turns the JSON log into a `Rasuvaeff\QualityLedger\RunReport`. Every mutant

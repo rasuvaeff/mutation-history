@@ -59,14 +59,19 @@ jobs:
           fi
 
           # Mutation is by far the most expensive job, so it gets a narrower
-          # filter than the rest: only what can change which mutants exist or
-          # which tests kill them. Style and static-analysis configs, examples
-          # and this workflow cannot. Explicit trade: editing the mutation STEP
-          # here no longer re-runs it — a break surfaces on the next source
-          # change or a manual re-run, which beats paying the full mutation run
-          # on every docs and CI edit.
+          # filter than the rest: only what can change which mutants exist,
+          # which tests kill them, or what the ratchet gate does with the
+          # result. Style and static-analysis configs, examples and this
+          # workflow cannot. Explicit trade: editing the mutation STEP here no
+          # longer re-runs it — a break surfaces on the next source change or a
+          # manual re-run, which beats paying the full mutation run on every
+          # docs and CI edit.
+          #
+          # `.github/scripts` is in the list because the gate lives there: it
+          # decides whether the job goes red, so a change to it that is never
+          # executed is the same blind spot the narrow filter is meant to avoid.
           if git diff --quiet "$BASE" "$GITHUB_SHA" -- \
-            src tests composer.json testo.php infection.json5; then
+            src tests composer.json testo.php infection.json5 .github/scripts; then
             echo "mutation=false" >> "$GITHUB_OUTPUT"
           else
             echo "mutation=true" >> "$GITHUB_OUTPUT"
@@ -206,8 +211,38 @@ jobs:
           path: build/property-db
           key: property-db-${{ github.run_id }}-${{ github.run_attempt }}
 
+      # The ledger has to outlive the runner the same way the property corpus
+      # does, and for the same reason: a fresh VM every time. restore/save are
+      # split for the same reason too — the combined action's post-if:
+      # success() would drop the write on exactly the red run that recorded a
+      # regression.
+      #
+      # Cache scoping is why the gate can only tighten on master: a PR reads
+      # the base branch's history but writes to its own isolated cache, so a
+      # PR compares against master's last run and cannot poison it.
+      - name: Restore mutation history
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: build/mutation-history
+          key: mutation-history-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: mutation-history-
+
       - name: Mutation testing
         run: composer mutation
+
+      # `!cancelled()` and not `success()`: a run that fell below minMsi is
+      # precisely the one worth recording, and the per-mutant diff is what says
+      # whether the drop is a new escape or a mutant count that grew.
+      - name: Ratchet gate on new escapes
+        if: ${{ !cancelled() }}
+        run: composer mutation:gate
+
+      - name: Save mutation history
+        if: ${{ !cancelled() }}
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: build/mutation-history
+          key: mutation-history-${{ github.run_id }}-${{ github.run_attempt }}
 
   compatibility:
     name: Backward compatibility

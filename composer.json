@@ -80,6 +80,7 @@
         "cs:fix": "php-cs-fixer fix --diff --config=.php-cs-fixer.php",
         "docs": "doc-exec README.md README.ru.md",
         "mutation": "infection --threads=max",
+        "mutation:gate": ".github/scripts/mutation-gate.sh",
         "psalm": "psalm --no-cache",
         "rector": "rector process --dry-run",
         "rector:fix": "rector process",

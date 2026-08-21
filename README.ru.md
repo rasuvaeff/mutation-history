@@ -160,6 +160,56 @@ vendor/bin/mutation-history badge --scope=acme/widgets --out=build/msi.svg
 первая джоба репозитория — ровно это состояние, и ронять на нём сборку
 бессмысленно.
 
+### В GitHub Actions
+
+Этот репозиторий гейтит сам себя рецептом ниже — см.
+[`.github/workflows/build.yml`](.github/workflows/build.yml) и
+[`.github/scripts/mutation-gate.sh`](.github/scripts/mutation-gate.sh).
+
+```yaml
+# Раздельные restore/save, а не один шаг `actions/cache`: комбинированный
+# объявляет `post-if: success()` и потому не сохранил бы результат ровно на
+# том красном прогоне, который записал регрессию. `run_attempt` в ключе нужен
+# потому, что при re-run `run_id` повторяется, а `save` отказывается писать
+# в занятый ключ.
+- name: Restore mutation history
+  uses: actions/cache/restore@<sha> # v6
+  with:
+    path: build/mutation-history
+    key: mutation-history-${{ github.run_id }}-${{ github.run_attempt }}
+    restore-keys: mutation-history-
+
+- name: Mutation testing
+  run: composer mutation
+
+- name: Ratchet gate on new escapes
+  if: ${{ !cancelled() }}   # прогон ниже minMsi — как раз тот, что стоит записать
+  run: composer mutation:gate
+
+- name: Save mutation history
+  if: ${{ !cancelled() }}
+  uses: actions/cache/save@<sha> # v6
+  with:
+    path: build/mutation-history
+    key: mutation-history-${{ github.run_id }}-${{ github.run_attempt }}
+```
+
+Два следствия кэширования, о которых стоит знать до копирования:
+
+- **Храповик затягивается только на основной ветке.** Pull request читает
+  историю базовой ветки, но пишет в собственный изолированный кэш: он
+  сравнивается с последним прогоном базовой ветки и не может её испортить.
+- **История живёт ровно столько, сколько кэш.** GitHub вычищает записи после
+  семи дней без чтений, и следующий прогон становится новой точкой отсчёта.
+  Если история должна это пережить — сохраняйте её в другое место: `--storage`
+  принимает любой каталог, а леджер — это один JSON-файл на scope.
+
+В идентичность мутанта входит `originalFilePath` ровно в том виде, в каком его
+отдаёт Infection, то есть **абсолютным**. У леджера, набранного в
+`/home/runner/work/...`, нет общих id с набранным в `/app`, поэтому держите
+одно хранилище на окружение (или гоняйте гейт только в CI, как здесь), а не
+подмешивайте локальный прогон в историю CI.
+
 ### `InfectionLogParser`
 
 Превращает JSON-лог в `Rasuvaeff\QualityLedger\RunReport`. Каждый мутант из
