@@ -1,0 +1,98 @@
+{
+    "stats": {
+        "totalMutantsCount": 7,
+        "killedCount": 2,
+        "escapedCount": 1,
+        "timeoutCount": 1,
+        "notCoveredCount": 1,
+        "errorCount": 1,
+        "skippedCount": 0,
+        "ignoredCount": 1,
+        "msi": 40.0
+    },
+    "escaped": [
+        {
+            "mutator": {
+                "mutatorName": "TrueValue",
+                "originalFilePath": "src/RetryPolicy.php",
+                "originalStartLine": 42,
+                "originalSourceCode": "<?php\ndeclare(strict_types=1);\n"
+            },
+            "diff": "@@ @@\n     private function shouldRetry(): bool\n     {\n-        return $this->attempts < $this->max;\n+        return true;\n     }",
+            "processOutput": "OK (3 tests, 5 assertions)"
+        }
+    ],
+    "timeouted": [
+        {
+            "mutator": {
+                "mutatorName": "Decrement",
+                "originalFilePath": "src/RetryPolicy.php",
+                "originalStartLine": 88,
+                "originalSourceCode": "<?php\n"
+            },
+            "diff": "@@ @@\n-        $i--;\n+        $i -= 2;",
+            "processOutput": ""
+        }
+    ],
+    "killed": [
+        {
+            "mutator": {
+                "mutatorName": "Identical",
+                "originalFilePath": "src/RetryPolicy.php",
+                "originalStartLine": 12,
+                "originalSourceCode": "<?php\n"
+            },
+            "diff": "@@ @@\n-        if ($a === $b) {\n+        if ($a !== $b) {",
+            "processOutput": "FAILURES!\nTests: 3, Assertions: 5, Failures: 1."
+        }
+    ],
+    "killedByStaticAnalysis": [
+        {
+            "mutator": {
+                "mutatorName": "PublicVisibility",
+                "originalFilePath": "src/RetryPolicy.php",
+                "originalStartLine": 95,
+                "originalSourceCode": "<?php\n"
+            },
+            "diff": "@@ @@\n-    public function run(): void\n+    protected function run(): void",
+            "processOutput": ""
+        }
+    ],
+    "errored": [
+        {
+            "mutator": {
+                "mutatorName": "UnwrapArrayMap",
+                "originalFilePath": "src/RetryPolicy.php",
+                "originalStartLine": 101,
+                "originalSourceCode": "<?php\n"
+            },
+            "diff": "@@ @@\n-        return array_map($fn, $rows);\n+        return $rows;",
+            "processOutput": ""
+        }
+    ],
+    "syntaxErrors": [],
+    "uncovered": [
+        {
+            "mutator": {
+                "mutatorName": "FalseValue",
+                "originalFilePath": "src/RetryPolicy.php",
+                "originalStartLine": 60,
+                "originalSourceCode": "<?php\n"
+            },
+            "diff": "@@ @@\n-        return false;\n+        return true;",
+            "processOutput": ""
+        }
+    ],
+    "ignored": [
+        {
+            "mutator": {
+                "mutatorName": "CastInt",
+                "originalFilePath": "src/RetryPolicy.php",
+                "originalStartLine": 70,
+                "originalSourceCode": "<?php\n"
+            },
+            "diff": "@@ @@\n-        return (int) $value;\n+        return $value;",
+            "processOutput": ""
+        }
+    ]
+}
