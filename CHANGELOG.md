@@ -32,6 +32,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `InvalidArgumentException` naming it. The shape used to be asserted with a
   `@var` annotation, so a truncated or foreign-version log surfaced as PHP
   warnings plus a `TypeError` from an internal argument.
+- Fixed: malformed JSON is rejected as an `InvalidArgumentException` like
+  every other bad log, not as the `JsonException` that `JSON_THROW_ON_ERROR`
+  raises — a caller catching the documented contract had a truncated file slip
+  past it as a different type. The decoder's own reason is kept in the message
+  and the original exception in `previous`.
+- Fixed: `digest` reports a rejected log as exit `1` plus that message on
+  stderr instead of an uncaught exception and a stack trace.
 - Fixed: `diff --bad-status=` (empty value) no longer classifies nothing as
   bad, which made the ratchet gate exit `0` forever — in the one command whose
   job is to fail CI. `--msi=<not a number>` is refused instead of writing
@@ -50,5 +57,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   against a quarter of the input, so the ratio shows a regression to
   quadratic scaling.
 - `infection/infection` widened to `^0.33 || ^0.34` (the log schema this
-  package targets is 0.34's), the mutation gate raised from 90 to 96, and
+  package targets is 0.34's), the mutation gate raised from 90 to 97, and
   Infection's own JSON log enabled so the package can be run against itself.
