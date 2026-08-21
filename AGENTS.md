@@ -13,14 +13,15 @@ from background debt. Public namespace `Rasuvaeff\MutationHistory`
 partition, the ratchet gate — lives in `quality-ledger`; this package is
 deliberately just a parser plus an id function on top of it.
 
-`quality-ledger` resolves from Packagist (`^0.1`, released as `v0.1.0` on
-2026-08-21). Until that release it came through a path repository pointing at
-`../quality-ledger`; that block is gone, and it must not come back — a path
+`quality-ledger` resolves from Packagist (`^0.2`, since the badge port landed
+in `v0.2.0` on 2026-08-21). Until its first release it came through a path
+repository pointing at `../quality-ledger`; that block is gone, and it must not come back — a path
 repository always satisfies its own constraint, so with one in place nothing
 here notices a version mismatch until an install from Packagist. That is
-exactly why the first tag had to be `0.1.0` and not `0.2.0`: `require` here
-says `^0.1`, and the path repository had been inventing that version to
-satisfy it.
+why the first tag had to be `0.1.0` and not something else: `require` here
+said `^0.1`, and the path repository had been inventing that version to
+satisfy it. The constraint moved to `^0.2` with the badge command, which
+needs `BadgeSvg`.
 
 ## Golden rules
 

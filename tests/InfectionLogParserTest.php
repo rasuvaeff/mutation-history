@@ -151,7 +151,9 @@ final class InfectionLogParserTest
 
         yield 'file path is an int' => [
             ['escaped' => [['mutator' => [...$mutator, 'originalFilePath' => 12], 'diff' => 'x']]],
-            'originalFilePath must be a non-empty string',
+            // Whole message: the bucket and index are what make the error
+            // actionable on a log with thousands of entries.
+            'Infection log entry escaped[0].mutator.originalFilePath must be a non-empty string',
         ];
 
         yield 'file path is empty' => [
@@ -171,7 +173,7 @@ final class InfectionLogParserTest
 
         yield 'mutator name is empty' => [
             ['escaped' => [['mutator' => [...$mutator, 'mutatorName' => ''], 'diff' => 'x']]],
-            'mutatorName must be a non-empty string',
+            'Infection log entry escaped[0].mutator.mutatorName must be a non-empty string',
         ];
 
         yield 'diff is an array' => [
@@ -188,6 +190,30 @@ final class InfectionLogParserTest
             ['escaped' => [['mutator' => $mutator, 'diff' => 'x'], ['mutator' => $mutator, 'diff' => 7]]],
             'escaped[1].diff must be a string',
         ];
+    }
+
+    /**
+     * `JSON_THROW_ON_ERROR` raises `JsonException`, which is not the
+     * `InvalidArgumentException` every other rejection in this class uses —
+     * a caller catching the documented contract would have had a truncated
+     * file slip past it as a different type.
+     */
+    public function malformedJsonIsRejectedAsAnInvalidArgument(): void
+    {
+        try {
+            (new InfectionLogParser())->parse('{"escaped": [', 'r1', 0, self::SCOPE);
+
+            Assert::fail('expected an InvalidArgumentException');
+        } catch (\InvalidArgumentException $e) {
+            $previous = $e->getPrevious();
+
+            Assert::instanceOf($previous, \JsonException::class);
+            // The whole message, so the decoder's own reason survives: without
+            // it the error says only "not valid JSON" and the caller has to
+            // guess whether the file is truncated, empty or something else.
+            Assert::same($e->getMessage(), 'Infection log is not valid JSON: ' . $previous->getMessage());
+            Assert::string($e->getMessage())->contains('Syntax error');
+        }
     }
 
     public function aNonObjectPayloadIsRejected(): void

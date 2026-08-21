@@ -47,8 +47,16 @@ final readonly class InfectionLogParser
      */
     public function parse(string $json, string $run, int $ts, string $scope, array $metrics = []): RunReport
     {
-        /** @var mixed $payload */
-        $payload = json_decode($json, associative: true, flags: \JSON_THROW_ON_ERROR);
+        try {
+            /** @var mixed $payload */
+            $payload = json_decode($json, associative: true, flags: \JSON_THROW_ON_ERROR);
+        } catch (\JsonException $e) {
+            // Wrapped, not propagated: every other rejection in this class is
+            // an InvalidArgumentException naming what is wrong with the log,
+            // and a caller catching that contract must not have a truncated
+            // file slip past it as a different exception type.
+            throw new \InvalidArgumentException('Infection log is not valid JSON: ' . $e->getMessage(), $e->getCode(), previous: $e);
+        }
 
         if (!\is_array($payload)) {
             throw new \InvalidArgumentException('Infection log is not a JSON object');
@@ -57,18 +65,15 @@ final readonly class InfectionLogParser
         $data = [];
 
         foreach (self::STATUS_BY_BUCKET as $bucket => $status) {
-            /** @var mixed $mutants */
-            $mutants = $payload[$bucket] ?? [];
-
-            if (!\is_array($mutants)) {
-                throw new \InvalidArgumentException(\sprintf('Infection log bucket "%s" is not a list', $bucket));
-            }
-
+            $mutants = $this->objectAt(
+                $payload[$bucket] ?? [],
+                \sprintf('Infection log bucket "%s" is not a list', $bucket),
+            );
             $index = 0;
 
             /** @var mixed $mutant */
             foreach ($mutants as $mutant) {
-                $entry = self::entry($mutant, $bucket, $index);
+                $entry = $this->entry($mutant, $bucket, $index);
                 ++$index;
 
                 $data[] = new Datum(
@@ -103,49 +108,63 @@ final readonly class InfectionLogParser
      *
      * @return array{file: non-empty-string, line: int, mutator: non-empty-string, diff: string}
      */
-    private static function entry(mixed $mutant, string $bucket, int $index): array
+    private function entry(mixed $mutant, string $bucket, int $index): array
     {
         $at = \sprintf('%s[%d]', $bucket, $index);
+        $fields = $this->objectAt($mutant, \sprintf('Infection log entry %s is not an object', $at));
+        $mutator = $this->objectAt(
+            $fields['mutator'] ?? null,
+            \sprintf('Infection log entry %s.mutator is missing or not an object', $at),
+        );
 
-        if (!\is_array($mutant)) {
-            throw new \InvalidArgumentException(\sprintf('Infection log entry %s is not an object', $at));
-        }
-
-        /** @var mixed $mutator */
-        $mutator = $mutant['mutator'] ?? null;
-
-        if (!\is_array($mutator)) {
-            throw new \InvalidArgumentException(\sprintf('Infection log entry %s.mutator is missing or not an object', $at));
-        }
-
-        /** @var mixed $file */
-        $file = $mutator['originalFilePath'] ?? null;
-
-        if (!\is_string($file) || $file === '') {
-            throw new \InvalidArgumentException(\sprintf('Infection log entry %s.mutator.originalFilePath must be a non-empty string', $at));
-        }
-
-        /** @var mixed $line */
+        $file = $this->nonEmptyStringAt($mutator['originalFilePath'] ?? null, $at . '.mutator.originalFilePath');
+        $mutatorName = $this->nonEmptyStringAt($mutator['mutatorName'] ?? null, $at . '.mutator.mutatorName');
         $line = $mutator['originalStartLine'] ?? null;
 
         if (!\is_int($line)) {
             throw new \InvalidArgumentException(\sprintf('Infection log entry %s.mutator.originalStartLine must be an int', $at));
         }
 
-        /** @var mixed $mutatorName */
-        $mutatorName = $mutator['mutatorName'] ?? null;
-
-        if (!\is_string($mutatorName) || $mutatorName === '') {
-            throw new \InvalidArgumentException(\sprintf('Infection log entry %s.mutator.mutatorName must be a non-empty string', $at));
-        }
-
-        /** @var mixed $diff */
-        $diff = $mutant['diff'] ?? null;
+        $diff = $fields['diff'] ?? null;
 
         if (!\is_string($diff)) {
             throw new \InvalidArgumentException(\sprintf('Infection log entry %s.diff must be a string', $at));
         }
 
         return ['file' => $file, 'line' => $line, 'mutator' => $mutatorName, 'diff' => $diff];
+    }
+
+    /**
+     * The value as an array, or `$message`.
+     *
+     * These two helpers take `mixed` as a **parameter** rather than letting
+     * the caller assign the raw value to a local first. That is not style:
+     * Psalm's MixedAssignment fires on the assignment, and silencing it
+     * needs a `@var mixed` on every line — annotations Rector then removes as
+     * useless, which is what a `RemoveUselessVarTagRector` skip in
+     * `rector.php` used to paper over. Narrowing behind a typed signature
+     * leaves both tools happy and the check real.
+     *
+     * @return array<array-key, mixed>
+     */
+    private function objectAt(mixed $value, string $message): array
+    {
+        if (!\is_array($value)) {
+            throw new \InvalidArgumentException($message);
+        }
+
+        return $value;
+    }
+
+    /**
+     * @return non-empty-string
+     */
+    private function nonEmptyStringAt(mixed $value, string $field): string
+    {
+        if (!\is_string($value) || $value === '') {
+            throw new \InvalidArgumentException(\sprintf('Infection log entry %s must be a non-empty string', $field));
+        }
+
+        return $value;
     }
 }

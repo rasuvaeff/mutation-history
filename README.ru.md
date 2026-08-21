@@ -36,7 +36,7 @@ killing power (какой тест убил мутанта, какой тест 
 
 ## Требования
 
-- PHP 8.3+
+- PHP 8.3–8.5
 - `rasuvaeff/quality-ledger`
 - Infection, настроенный писать JSON-лог: `"logs": { "json":
   "build/infection-log.json" }` в `infection.json5` (CLI-флага

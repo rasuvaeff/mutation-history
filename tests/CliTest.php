@@ -564,6 +564,47 @@ final class CliTest
         Assert::string($err)->contains('mutation-history badge');
     }
 
+    /**
+     * The parser rejects a bad log with an exception; the CLI has to turn
+     * that into the exit code and the stderr line it promises everywhere
+     * else, not into an uncaught exception with a stack trace.
+     */
+    public function aMalformedLogIsReportedAndExitsOne(): void
+    {
+        $path = $this->storage . '-broken.json';
+        file_put_contents($path, '{"escaped": [');
+
+        try {
+            [$exit, $out, $err] = $this->run(['digest', '--scope=s', '--run=r1', "--log={$path}", "--storage={$this->storage}"]);
+
+            Assert::same($exit, 1);
+            Assert::same($out, '');
+            // Exactly the parser's message and a newline: no stack trace, and
+            // no second line from PHP's own error handler.
+            Assert::same($err, "Infection log is not valid JSON: Syntax error\n");
+        } finally {
+            unlink($path);
+        }
+    }
+
+    public function AnEntryWithAWrongFieldTypeIsReportedWithItsFieldName(): void
+    {
+        $path = $this->storage . '-badfield.json';
+        file_put_contents($path, (string) json_encode(['escaped' => [[
+            'mutator' => ['mutatorName' => 'TrueValue', 'originalFilePath' => 'src/A.php', 'originalStartLine' => '7'],
+            'diff' => 'd',
+        ]]]));
+
+        try {
+            [$exit, , $err] = $this->run(['digest', '--scope=s', '--run=r1', "--log={$path}", "--storage={$this->storage}"]);
+
+            Assert::same($exit, 1);
+            Assert::string($err)->contains('escaped[0].mutator.originalStartLine must be an int');
+        } finally {
+            unlink($path);
+        }
+    }
+
     public function anUnreadableLogPathIsAnError(): void
     {
         [$exit, , $err] = $this->run(['digest', '--scope=s', '--run=r1', '--log=/no/such/file.json', "--storage={$this->storage}"]);
@@ -590,13 +631,18 @@ final class CliTest
     public function digestReportsTheStorageDirectoryDefaultViaCwd(): void
     {
         // No --storage: the ledger falls back to getcwd() . '/build/mutation-history'.
-        // chdir() to a directory this test owns so the assertion below does
-        // not depend on (or pollute) wherever testo happens to run from.
+        // chdir() into a directory this test creates for itself — not into
+        // sys_get_temp_dir() itself, whose './build/mutation-history' is
+        // shared with every other process on the machine, so a concurrent run
+        // or a leftover file from an aborted one would break the count below
+        // (and the cleanup would rmdir() a directory it does not own).
         $cwd = getcwd();
         \assert($cwd !== false);
-        chdir(sys_get_temp_dir());
+        $root = sys_get_temp_dir() . '/mutation-history-cwd-' . bin2hex(random_bytes(8));
+        mkdir($root, 0o777, recursive: true);
+        chdir($root);
 
-        $default = sys_get_temp_dir() . '/build/mutation-history';
+        $default = $root . '/build/mutation-history';
 
         try {
             [$exit] = $this->run(['digest', '--scope=s', '--run=r1', "--log={$this->logPath}"]);
@@ -610,14 +656,13 @@ final class CliTest
         } finally {
             chdir($cwd);
 
-            if (is_dir($default)) {
-                foreach (glob($default . '/*') ?: [] as $file) {
-                    @unlink($file);
-                }
-
-                @rmdir($default);
-                @rmdir(\dirname($default));
+            foreach (glob($default . '/*') ?: [] as $file) {
+                unlink($file);
             }
+
+            @rmdir($default);
+            @rmdir(\dirname($default));
+            @rmdir($root);
         }
     }
 }

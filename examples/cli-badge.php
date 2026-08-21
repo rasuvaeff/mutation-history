@@ -56,8 +56,10 @@ $empty = Badge::fromTrend($ledger->trend(scope: 'brand-new', metric: 'msi'), 'mu
 
 printf("empty scope -> %s (%s)\n", $empty->message, $empty->color->value);
 
+// No `@` on the cleanup: these are files this script created a moment ago,
+// so a failure here is a real problem worth seeing, not noise to swallow.
 foreach (glob($dir . '/*') ?: [] as $file) {
-    @unlink($file);
+    unlink($file);
 }
 
-@rmdir($dir);
+rmdir($dir);

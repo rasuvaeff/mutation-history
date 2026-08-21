@@ -63,8 +63,14 @@ use Rasuvaeff\QualityLedger\RatchetGate;
 $parser = new InfectionLogParser();
 $ledger = new Ledger(id: new MutantId(), storage: new LocalFileStorage(__DIR__ . '/build/mutation-history'));
 
+$json = file_get_contents('build/infection-log.json');
+
+if ($json === false) {
+    throw new RuntimeException('Could not read build/infection-log.json');
+}
+
 $report = $parser->parse(
-    json: file_get_contents('build/infection-log.json'),
+    json: $json,
     run: getenv('GITHUB_SHA') ?: 'local',
     ts: time(),
     scope: 'acme/widgets',

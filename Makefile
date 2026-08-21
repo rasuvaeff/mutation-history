@@ -3,7 +3,7 @@ DOCKER_HOST := docker run --rm --network host -v "$(PWD)":/app -w /app
 PCOV_BOOTSTRAP := apk add --no-cache $$PHPIZE_DEPS >/dev/null && pecl install pcov >/dev/null && docker-php-ext-enable pcov
 
 .PHONY: bench build cs cs-fix psalm test mutation rector rector-fix install normalize require-checker \
-       test-coverage test-coverage-ci update-deps release-check bc-check audit-package
+       test-coverage test-coverage-ci update-deps release-check bc-check audit-package help
 
 install:
 	$(DOCKER) composer install --no-interaction --no-progress --prefer-dist

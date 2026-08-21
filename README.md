@@ -36,7 +36,7 @@ work behind a `processOutput`-parsing extractor, not part of the core.
 
 ## Requirements
 
-- PHP 8.3+
+- PHP 8.3–8.5
 - `rasuvaeff/quality-ledger`
 - Infection configured to write its JSON log: `"logs": { "json":
   "build/infection-log.json" }` in `infection.json5` (there is no

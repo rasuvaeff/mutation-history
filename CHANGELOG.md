@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Initial release: `InfectionLogParser` (parses Infection's per-mutant JSON
   log into a `quality-ledger` `RunReport`) and `MutantId` (a
   `StableIdInterface` keyed on file/line/mutator/normalized-diff), plus the
-  `bin/mutation-history` CLI (`digest`/`diff`/`trend`).
+  `bin/mutation-history` CLI (`digest`/`diff`/`trend`/`badge`).
 - `quality-ledger` is resolved from Packagist (`^0.2`); the path repository
   that stood in for it before its release is gone.
 - `bin/mutation-history badge` renders the latest value of a metric as a

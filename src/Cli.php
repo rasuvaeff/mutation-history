@@ -109,7 +109,19 @@ final readonly class Cli
             $metrics['msi'] = (float) $msi;
         }
 
-        $report = (new InfectionLogParser())->parse($json, $run, time(), $scope, $metrics);
+        // The log is another tool's output, possibly from another Infection
+        // version, possibly truncated by a killed CI job. The parser names
+        // the offending field; this turns that into the exit code and the
+        // stderr line the rest of the CLI promises, instead of an uncaught
+        // exception and a stack trace.
+        try {
+            $report = (new InfectionLogParser())->parse($json, $run, time(), $scope, $metrics);
+        } catch (\InvalidArgumentException $e) {
+            fwrite($stderr, $e->getMessage() . "\n");
+
+            return 1;
+        }
+
         $this->ledger($options)->append($report);
 
         fwrite($stdout, \sprintf("Recorded run \"%s\" for scope \"%s\": %d mutants.\n", $run, $scope, \count($report->data)));
@@ -277,24 +289,40 @@ final readonly class Cli
      */
     private function describe(array $meta, string $kind): string
     {
-        /** @var mixed $rawFile */
-        $rawFile = $meta['file'] ?? null;
-        $file = \is_string($rawFile) ? $rawFile : '?';
+        return \sprintf(
+            '%s:%s (%s)',
+            $this->text($meta['file'] ?? null, '?'),
+            $this->text($meta['line'] ?? null, '?'),
+            $this->text($meta['mutator'] ?? null, $kind),
+        );
+    }
 
-        /** @var mixed $rawLine */
-        $rawLine = $meta['line'] ?? null;
-        // The (string) cast is mutation-tested and confirmed equivalent:
-        // sprintf()'s "%s" below coerces an int to its string form on its
-        // own, so dropping the cast here produces byte-identical output for
-        // every int this branch ever sees. Kept for the return type — $line
-        // joins $file/$mutator below and all three are meant to be string.
-        $line = \is_int($rawLine) ? (string) $rawLine : '?';
+    /**
+     * One `meta` value as display text, or `$fallback` when it is neither a
+     * string nor an int.
+     *
+     * Taking `mixed` as a parameter rather than assigning it to a local first
+     * is what keeps this file free of `@var mixed` annotations: Psalm's
+     * MixedAssignment fires on the assignment, not on the argument, and those
+     * annotations in turn needed a `RemoveUselessVarTagRector` skip in
+     * `rector.php` because Rector reads them as useless. Neither is needed
+     * now.
+     *
+     */
+    private function text(mixed $value, string $fallback): string
+    {
+        if (\is_string($value)) {
+            return $value === '' ? $fallback : $value;
+        }
 
-        /** @var mixed $rawMutator */
-        $rawMutator = $meta['mutator'] ?? null;
-        $mutator = \is_string($rawMutator) ? $rawMutator : $kind;
+        // (string) on an int, not sprintf's own "%s" coercion: the return
+        // type is the point, and a caller reading this method's name expects
+        // text back.
+        if (\is_int($value)) {
+            return (string) $value;
+        }
 
-        return \sprintf('%s:%s (%s)', $file, $line, $mutator);
+        return $fallback;
     }
 
     /**
