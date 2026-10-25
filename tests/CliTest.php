@@ -572,16 +572,30 @@ final class CliTest
     public function aMalformedLogIsReportedAndExitsOne(): void
     {
         $path = $this->storage . '-broken.json';
-        file_put_contents($path, '{"escaped": [');
+        $brokenJson = '{"escaped": [';
+        file_put_contents($path, $brokenJson);
+
+        // PHP 8.6 appends the error location to the JSON error message, so
+        // the wording is the runtime's, not a constant. The contract under
+        // test is "exactly the parser's message for THIS payload and a
+        // newline" — no stack trace, and no second line from PHP's own error
+        // handler — so the expectation is built from the same broken JSON.
+        $expected = 'Infection log is not valid JSON: ';
+
+        try {
+            json_decode($brokenJson, flags: \JSON_THROW_ON_ERROR);
+        } catch (\JsonException $e) {
+            $expected .= $e->getMessage();
+        }
+
+        $expected .= "\n";
 
         try {
             [$exit, $out, $err] = $this->run(['digest', '--scope=s', '--run=r1', "--log={$path}", "--storage={$this->storage}"]);
 
             Assert::same($exit, 1);
             Assert::same($out, '');
-            // Exactly the parser's message and a newline: no stack trace, and
-            // no second line from PHP's own error handler.
-            Assert::same($err, "Infection log is not valid JSON: Syntax error\n");
+            Assert::same($err, $expected);
         } finally {
             unlink($path);
         }
