@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Rasuvaeff\MutationHistory\Tests;
 
 use Rasuvaeff\MutationHistory\Cli;
+use Rasuvaeff\MutationHistory\Tests\Support\UnopenableStream;
 use Testo\Assert;
 use Testo\Codecov\Covers;
 use Testo\Lifecycle\AfterTest;
@@ -536,6 +537,32 @@ final class CliTest
         Assert::same($exit, 0);
         Assert::string($out)->contains('>n/a<');
         Assert::string($out)->contains('fill="#e05d44"');
+    }
+
+    public function digestReportsALogThatExistsButCannotBeOpened(): void
+    {
+        UnopenableStream::register();
+        $logPath = UnopenableStream::SCHEME . '://log.json';
+        set_error_handler(static fn(): bool => true);
+
+        try {
+            [$exit, $out, $err] = $this->run(['digest', '--scope=s', '--run=r1', "--log={$logPath}", "--storage={$this->storage}"]);
+        } finally {
+            restore_error_handler();
+            UnopenableStream::unregister();
+        }
+
+        Assert::same($exit, 1);
+        Assert::same($out, '');
+        Assert::same($err, "Could not read --log={$logPath}\n");
+    }
+
+    public function aStrayArgumentBetweenOptionsDoesNotDropTheOptionsAfterIt(): void
+    {
+        [$exit, $out] = $this->run(['digest', 'stray', '--scope=s', 'another', '--run=r1', "--log={$this->logPath}", "--storage={$this->storage}"]);
+
+        Assert::same($exit, 0);
+        Assert::string($out)->contains('7 mutants');
     }
 
     public function badgeReportsAnUnwritableOutPath(): void

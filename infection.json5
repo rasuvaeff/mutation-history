@@ -13,8 +13,39 @@
         "json": "build/infection-log.json"
     },
     "testFramework": "testo",
+    // Measured 2026-11-01 with --with-uncovered (counts code the tests execute but do
+    // not name in #[Covers]), assertions off as in CI: 219 mutants, 215 killed, overall
+    // MSI 98.2%. The four survivors are equivalent mutants:
+    //   - Cli::run() line 52 (DecrementInteger, UnwrapArraySlice): parseOptions()
+    //     skips every argument without a "--" prefix, so passing the command word too
+    //     changes nothing.
+    //   - Cli line 281, Ternary: with a live cwd "./build/mutation-history" and
+    //     "{$cwd}/build/mutation-history" name the same directory; the other arm needs
+    //     getcwd() === false.
+    //   - MutantId::normalizeDiff() line 113, CastString on the whitespace-collapsing
+    //     preg_replace(): it returns null only on a PCRE error, and the pattern is a
+    //     fixed linear `[ \t]+`; making it fail needs pcre.jit=0 before the pattern is
+    //     first compiled, which a test cannot control. The cast on line 122 is killed.
     "minMsi": 97,
     "mutators": {
-        "@default": true
+        "@default": true,
+        // Constructor/method parameter declarations with a default value
+        // (`private int $x = 100,`, `bool $strict = false,`): the mutant sits on a
+        // signature line with no executable opcode under pcov, so it is reported Not
+        // Covered whatever the tests do. Only a type-prefixed `$name = default,` line
+        // matches; a body line cannot (no type before the variable). Do NOT add ^ or $:
+        // Infection wraps the pattern as ^-\s*REGEX$ over the removed diff line.
+        // Verified 2026-11-01 by diffing the survivor lists with and without it:
+        // bulkhead 6, circuit-breaker 13, json-ld 19 mutants removed, all of them
+        // such signature lines; Escaped and Timed Out unchanged.
+        "global-ignoreSourceCodeByRegex": [
+            "(?:(?:private|protected|public|readonly)\\s+)*\\??[A-Za-z_\\\\][\\w\\\\|]*\\s+\\$\\w+\\s*=\\s*[^,;]+,"
+        ],
+        // Off: with --with-uncovered a PublicVisibility mutant sits on a parameterless
+        // method's signature line, which has no executable opcode under pcov/xdebug,
+        // so it is reported Not Covered and can never be killed, whatever #[Covers]
+        // says. Measured on pinned-http-client 2026-11-01: 4 of 4 such mutants were
+        // Not Covered, none killed.
+        "PublicVisibility": false
     }
 }

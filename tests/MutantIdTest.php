@@ -54,6 +54,19 @@ final class MutantIdTest
         Assert::same(MutantId::normalizeDiff("  x  "), 'x');
     }
 
+    public function normalizeDiffYieldsAnEmptyStringWhenTheHunkHeaderPatternExhaustsTheBacktrackLimit(): void
+    {
+        $previous = ini_set('pcre.backtrack_limit', '100');
+
+        try {
+            $normalized = MutantId::normalizeDiff('@@ ' . str_repeat('x', 2000));
+        } finally {
+            ini_set('pcre.backtrack_limit', (string) $previous);
+        }
+
+        Assert::same($normalized, '');
+    }
+
     public function sameFileLineMutatorAndDiffGiveTheSameId(): void
     {
         $sig = MutantId::signature('src/X.php', 42, 'TrueValue', '-a;+b');
