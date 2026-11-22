@@ -14,6 +14,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   including the two consequences of keeping the ledger in the Actions cache
   and the fact that mutant identity contains Infection's absolute file path.
 - Mutation testing now counts uncovered code (`--with-uncovered`, template mutator settings): overall MSI 94% before, 98% after, against `minMsi` 97. Added tests for an unopenable `--log` file (stream wrapper), a stray argument between options, and `MutantId::normalizeDiff()` on a PCRE backtrack-limit failure. No src changes.
+- **Changed:** PHP 8.6 is supported: the `php` constraint is widened to
+  `8.3 - 8.6` (#7). CI runs PHP 8.6 as a regular matrix entry; the
+  backward-compatibility job runs on PHP 8.5.
 
 ## 0.1.0 — 2026-08-21
 
