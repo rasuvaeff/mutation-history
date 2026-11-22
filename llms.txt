@@ -8,7 +8,7 @@ composer require rasuvaeff/mutation-history
 
 ## Rules
 
-- PHP 8.3-8.5, `declare(strict_types=1)`, `final readonly class` throughout.
+- PHP 8.3-8.6, `declare(strict_types=1)`, `final readonly class` throughout.
 - Reads Infection's **per-mutant JSON log** — enable it in `infection.json5`:
   `"logs": { "json": "build/infection-log.json" }`. There is no
   `--logger-json` CLI flag; it is a config key only.
